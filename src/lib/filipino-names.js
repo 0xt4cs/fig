@@ -151,4 +151,26 @@ export function generateFilipinoJob() {
     company: company,
     department: department
   };
+}
+
+export function generateFilipinoBio() {
+  const bioTemplates = [
+    "A hardworking Filipino who values family above all else. Enjoys spending time with loved ones during weekends and loves karaoke sessions.",
+    "Born and raised in the Philippines, passionate about Filipino culture and traditions. Loves adobo, sinigang, and weekend beach trips.",
+    "A proud Pinoy who enjoys basketball, loves watching PBA games, and never misses Sunday family gatherings.",
+    "Filipino professional who believes in 'kapamilya' spirit. Enjoys local festivals, street food, and helping the community.",
+    "Loves Filipino movies, OPM music, and celebrating holidays with extended family. Values hard work and perseverance.",
+    "A Filipino who enjoys jeepney rides, mall visits with friends, and trying different regional Filipino dishes.",
+    "Passionate about Philippine history and culture. Loves visiting historical sites and supporting local businesses.",
+    "Filipino who values education and dreams of traveling around the beautiful islands of the Philippines.",
+    "Enjoys Filipino telenovelas, loves shopping at local markets, and believes in 'bayanihan' spirit.",
+    "A proud Filipino who loves celebrating fiestas, enjoys lechon during special occasions, and values respect for elders.",
+    "Filipino professional who enjoys morning coffee with pandesal and evening conversations with neighbors.",
+    "Loves Philippine festivals, enjoys dancing to Filipino folk songs, and believes in the power of community.",
+    "A Filipino who enjoys beach vacations in Boracay or Palawan and loves sharing meals with family and friends.",
+    "Passionate about Filipino cuisine, loves cooking traditional dishes, and enjoys weekend trips to nearby provinces.",
+    "Filipino who values friendship, loves celebrating birthdays with lots of food, and enjoys singing videoke."
+  ];
+  
+  return getRandomFilipino(bioTemplates);
 } 
