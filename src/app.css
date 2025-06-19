@@ -1,0 +1,5 @@
+/* Reset and base styles are handled in App.svelte */
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
