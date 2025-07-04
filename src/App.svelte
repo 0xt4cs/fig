@@ -3,12 +3,16 @@
   import PersonCard from './lib/PersonCard.svelte';
   import DarkModeToggle from './lib/DarkModeToggle.svelte';
   import Toast from './lib/Toast.svelte';
-    // Import OOP services
+  import ExportButton from './lib/ExportButton.svelte';
+  import AdvancedOptions from './lib/AdvancedOptions.svelte';
+  
+  // Import OOP services
   import { PersonGeneratorService } from './lib/services/PersonGeneratorService.js';
   import { NotificationService } from './lib/services/NotificationService.js';
   import { StorageService } from './lib/services/StorageService.js';
   import { getCountriesList } from './lib/config/countries.js';
-    // Initialize services
+  
+  // Initialize services
   const personGenerator = new PersonGeneratorService();
   const notificationService = new NotificationService();
   const storageService = new StorageService();
@@ -21,28 +25,33 @@
   let currentPerson = null;
   let selectedCountry = 'international';
   let isDarkMode = false;
+  let advancedOptions = {};
   
   // Toast notification state
   let toastMessage = '';
   let toastType = 'info';
-  let showToast = false;    // Dark mode management using StorageService
+  let showToast = false;
+  
+  // Dark mode management using StorageService
   function toggleDarkMode() {
     isDarkMode = !isDarkMode;
     updateDarkModeClass();
     storageService.setItem('darkMode', isDarkMode.toString());
     notificationService.success(isDarkMode ? 'Dark mode enabled' : 'Light mode enabled');
   }
-    function updateDarkModeClass() {
+  
+  function updateDarkModeClass() {
     if (isDarkMode) {
       document.documentElement.classList.add('dark');
     } else {
       document.documentElement.classList.remove('dark');
     }
   }
-      function generatePerson() {
+  
+  function generatePerson() {
     loading = true;
     setTimeout(() => {
-      const newPerson = personGenerator.generatePerson(selectedCountry);
+      const newPerson = personGenerator.generatePerson(selectedCountry, advancedOptions);
       currentPerson = newPerson;
       persons = [newPerson, ...persons].slice(0, 20);
       loading = false;
@@ -53,7 +62,7 @@
   function generateMultiple(count) {
     loading = true;
     setTimeout(() => {
-      const newPersons = personGenerator.generateMultiplePersons(count, selectedCountry);
+      const newPersons = personGenerator.generateMultiplePersons(count, selectedCountry, advancedOptions);
       persons = newPersons;
       if (newPersons.length > 0) {
         currentPerson = newPersons[0];
@@ -62,7 +71,22 @@
       notificationService.success(`Generated ${count} people successfully!`);
     }, 500);
   }
-    // Initialize dark mode on mount using StorageService
+  
+  // Handle advanced options change
+  function handleAdvancedOptionsChange(event) {
+    advancedOptions = event.detail.options;
+  }
+  
+  // Handle export events
+  function handleExportSuccess(event) {
+    notificationService.success(event.detail);
+  }
+  
+  function handleExportError(event) {
+    notificationService.error(event.detail);
+  }
+  
+  // Initialize dark mode on mount using StorageService
   onMount(() => {
     // Subscribe to notification service
     notificationService.subscribe((notification) => {
@@ -127,7 +151,8 @@
             <!-- svelte-ignore a11y-label-has-associated-control -->
             <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
               Select Country/Region
-            </label>            <select 
+            </label>
+            <select 
               bind:value={selectedCountry} 
               class="input text-lg"
               on:change={() => notificationService.info(`Switched to ${countries.find(c => c.value === selectedCountry)?.label}`)}
@@ -139,6 +164,16 @@
           </div>
         </div>
         
+        <!-- Advanced Options -->
+        <div class="mb-6">
+          <AdvancedOptions 
+            {selectedCountry} 
+            disabled={loading}
+            on:optionsChanged={handleAdvancedOptionsChange}
+          />
+        </div>
+        
+        <!-- Generation Buttons -->
         <div class="flex flex-wrap gap-4 justify-center">
           <button 
             class="btn btn-primary btn-large"
@@ -193,16 +228,27 @@
     <!-- All Generated People -->
     {#if persons.length > 1}
       <div class="animate-fade-in">
-        <div class="flex items-center justify-between mb-6">
-          <h3 class="text-2xl font-bold text-gray-900 dark:text-white">All Generated People ({persons.length})</h3>          <button 
-            class="btn btn-danger text-sm"
-            on:click={() => { 
-              persons = currentPerson ? [currentPerson] : []; 
-              notificationService.info('Cleared all generated people');
-            }}
-          >
-            🗑️ Clear All
-          </button>
+        <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-6 gap-4">
+          <h3 class="text-2xl font-bold text-gray-900 dark:text-white">All Generated People ({persons.length})</h3>
+          
+          <div class="flex gap-2">
+            <ExportButton 
+              people={persons}
+              disabled={loading}
+              on:success={handleExportSuccess}
+              on:error={handleExportError}
+            />
+            
+            <button 
+              class="btn btn-danger text-sm"
+              on:click={() => { 
+                persons = currentPerson ? [currentPerson] : []; 
+                notificationService.info('Cleared all generated people');
+              }}
+            >
+              🗑️ Clear All
+            </button>
+          </div>
         </div>
         
         <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">

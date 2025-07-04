@@ -53,9 +53,10 @@ export class PersonGeneratorService {
   /**
    * Generate a complete person object with error handling
    * @param {string} countryCode 
+   * @param {Object} options - Advanced generation options
    * @returns {Person}
    */
-  generatePerson(countryCode = 'international') {
+  generatePerson(countryCode = 'international', options = {}) {
     try {
       const config = getCountryConfig(countryCode);
       if (!config) {
@@ -69,8 +70,8 @@ export class PersonGeneratorService {
         createdAt: new Date()
       };
 
-      // Generate name and basic info
-      const nameData = this.generateNameData(countryCode);
+      // Generate name and basic info with advanced options
+      const nameData = this.generateNameData(countryCode, options);
       Object.assign(personData, nameData);
 
       // Generate contact information
@@ -79,16 +80,18 @@ export class PersonGeneratorService {
         lastName: personData.lastName 
       });
       personData.phone = this.phoneGenerator.generate(countryCode);
-      personData.avatar = faker.image.avatar();      // Generate personal details
-      personData.birthdate = faker.date.birthdate();
+      personData.avatar = faker.image.avatar();
+      
+      // Generate personal details with advanced options
+      personData.birthdate = this.generateBirthdate(options);
       personData.zodiacSign = faker.person.zodiacSign();
       personData.nationality = config?.nationality || 'International';
 
-      // Generate address
-      personData.address = this.generateAddressData(countryCode, config);
+      // Generate address with location preferences
+      personData.address = this.generateAddressData(countryCode, config, options);
 
-      // Generate job
-      personData.job = this.generateJobData(countryCode);
+      // Generate job with industry and experience preferences
+      personData.job = this.generateJobData(countryCode, options);
 
       // Generate bio with context
       personData.bio = this.generateBioData(countryCode, nameData, personData.address);
@@ -149,40 +152,156 @@ export class PersonGeneratorService {
   }
 
   /**
-   * Generate multiple persons
+   * Generate multiple persons with advanced options
    * @param {number} count 
    * @param {string} countryCode 
+   * @param {Object} options - Advanced generation options
    * @returns {Person[]}
    */
-  generateMultiplePersons(count, countryCode = 'international') {
+  generateMultiplePersons(count, countryCode = 'international', options = {}) {
     const persons = [];
+    
+    // Handle relationship generation
+    if (options.relationship?.enabled && options.relationship.type !== 'individual') {
+      return this.generateRelatedPersons(count, countryCode, options);
+    }
+    
+    // Generate individual persons
     for (let i = 0; i < count; i++) {
-      persons.push(this.generatePerson(countryCode));
+      persons.push(this.generatePerson(countryCode, options));
     }
     return persons;
+  }
+
+  /**
+   * Generate related persons (couples, families)
+   * @param {number} count 
+   * @param {string} countryCode 
+   * @param {Object} options 
+   * @returns {Person[]}
+   */
+  generateRelatedPersons(count, countryCode, options) {
+    const persons = [];
+    let remaining = count;
+    
+    while (remaining > 0) {
+      if (options.relationship.type === 'couple' && remaining >= 2) {
+        const couple = this.generateCouple(countryCode, options);
+        persons.push(...couple);
+        remaining -= 2;
+      } else if (options.relationship.type === 'family' && remaining >= 3) {
+        const familySize = Math.min(remaining, Math.floor(Math.random() * 3) + 3); // 3-5 members
+        const family = this.generateFamily(familySize, countryCode, options);
+        persons.push(...family);
+        remaining -= familySize;
+      } else {
+        // Fill remaining with individual persons
+        persons.push(this.generatePerson(countryCode, options));
+        remaining--;
+      }
+    }
+    
+    return persons.slice(0, count);
+  }
+
+  /**
+   * Generate a couple with shared characteristics
+   * @param {string} countryCode 
+   * @param {Object} options 
+   * @returns {Person[]}
+   */
+  generateCouple(countryCode, options) {
+    // Generate shared characteristics
+    const sharedLastName = faker.person.lastName();
+    const sharedAddress = this.generateAddressData(countryCode, getCountryConfig(countryCode), options);
+    
+    // Generate male partner
+    const maleOptions = { ...options, gender: { preference: 'male', enabled: true } };
+    const male = this.generatePerson(countryCode, maleOptions);
+    male.lastName = sharedLastName;
+    male.fullName = `${male.firstName} ${sharedLastName}`;
+    male.address = sharedAddress;
+    
+    // Generate female partner
+    const femaleOptions = { ...options, gender: { preference: 'female', enabled: true } };
+    const female = this.generatePerson(countryCode, femaleOptions);
+    female.lastName = sharedLastName;
+    female.fullName = `${female.firstName} ${sharedLastName}`;
+    female.address = sharedAddress;
+    
+    return [male, female];
+  }
+
+  /**
+   * Generate a family with shared characteristics
+   * @param {number} size 
+   * @param {string} countryCode 
+   * @param {Object} options 
+   * @returns {Person[]}
+   */
+  generateFamily(size, countryCode, options) {
+    const family = [];
+    const familyLastName = faker.person.lastName();
+    const familyAddress = this.generateAddressData(countryCode, getCountryConfig(countryCode), options);
+    
+    // Generate parents first
+    const parents = this.generateCouple(countryCode, options);
+    parents.forEach(parent => {
+      parent.lastName = familyLastName;
+      parent.fullName = `${parent.firstName} ${familyLastName}`;
+      parent.address = familyAddress;
+    });
+    family.push(...parents);
+    
+    // Generate children
+    const childrenCount = size - 2;
+    for (let i = 0; i < childrenCount; i++) {
+      const childOptions = {
+        ...options,
+        ageRange: { min: 5, max: 17, enabled: true }
+      };
+      const child = this.generatePerson(countryCode, childOptions);
+      child.lastName = familyLastName;
+      child.fullName = `${child.firstName} ${familyLastName}`;
+      child.address = familyAddress;
+      family.push(child);
+    }
+    
+    return family;
   }  /**
    * Generate name data based on country with enhanced support for multiple countries
    * @param {string} countryCode 
+   * @param {Object} options - Advanced generation options
    * @returns {Object}
    */
-  generateNameData(countryCode) {
+  generateNameData(countryCode, options = {}) {
     if (countryCode === 'philippines') {
       // Use enhanced Philippine data generator (integrated)
       const region = this.philippineRegions[Math.floor(Math.random() * this.philippineRegions.length)];
-      return this.generatePhilippineName(null, region);
+      const genderPreference = options.gender?.enabled ? options.gender.preference : null;
+      const selectedGender = genderPreference === 'random' ? null : genderPreference;
+      return this.generatePhilippineName(selectedGender, region);
     }
 
     if (this.enhancedCountries.includes(countryCode)) {
       // Use enhanced country data generator
-      const nameData = this.countryGenerator.generateName(countryCode);
+      const nameData = this.countryGenerator.generateName(countryCode, options);
       if (nameData) {
         return nameData;
       }
     }
 
-    // For other countries or fallback, use faker
-    const gender = faker.person.gender();
-    const firstName = faker.person.firstName();
+    // For other countries or fallback, use faker with gender preference
+    let gender = faker.person.gender();
+    if (options.gender?.enabled && options.gender.preference !== 'random') {
+      if (options.gender.preference === 'non-binary') {
+        gender = faker.helpers.arrayElement(['Non-binary', 'Genderfluid', 'Agender', 'Demi-boy', 'Demi-girl']);
+      } else {
+        gender = options.gender.preference;
+      }
+    }
+
+    const firstName = faker.person.firstName(gender);
     const lastName = faker.person.lastName();
 
     return {
@@ -192,13 +311,37 @@ export class PersonGeneratorService {
       gender,
       culturalGroup: 'international'
     };
+  }
+
+  /**
+   * Generate birthdate with age range constraints
+   * @param {Object} options - Advanced generation options
+   * @returns {Date}
+   */
+  generateBirthdate(options = {}) {
+    if (options.ageRange?.enabled) {
+      const minAge = options.ageRange.min;
+      const maxAge = options.ageRange.max;
+      const currentYear = new Date().getFullYear();
+      
+      const minYear = currentYear - maxAge;
+      const maxYear = currentYear - minAge;
+      
+      return faker.date.between({
+        from: new Date(minYear, 0, 1),
+        to: new Date(maxYear, 11, 31)
+      });
+    }
+    
+    return faker.date.birthdate();
   }  /**
    * Generate address data based on country with enhanced support for multiple countries
    * @param {string} countryCode 
    * @param {Object} config 
+   * @param {Object} options - Advanced generation options
    * @returns {Address}
    */
-  generateAddressData(countryCode, config) {
+  generateAddressData(countryCode, config, options = {}) {
     if (countryCode === 'philippines') {
       // Use enhanced Philippine data generator (integrated)
       const region = this.philippineRegions[Math.floor(Math.random() * this.philippineRegions.length)];
@@ -219,7 +362,7 @@ export class PersonGeneratorService {
 
     if (this.enhancedCountries.includes(countryCode)) {
       // Use enhanced country data generator
-      const addressData = this.countryGenerator.generateAddress(countryCode);
+      const addressData = this.countryGenerator.generateAddress(countryCode, options);
       if (addressData) {
         return new Address({
           street: addressData.street,
@@ -233,9 +376,24 @@ export class PersonGeneratorService {
     }
 
     // For other countries or fallback, use faker with country-specific coordinates
+    // Apply location preferences if specified
+    let city = faker.location.city();
+    if (options.location?.enabled && options.location.urbanPreference !== 'random') {
+      const locationTypes = {
+        urban: ['Metropolitan', 'Downtown', 'City Center', 'Urban District'],
+        suburban: ['Suburb', 'Residential Area', 'Parkside', 'Garden District'],
+        rural: ['Rural', 'Countryside', 'Village', 'Township']
+      };
+      
+      if (locationTypes[options.location.urbanPreference]) {
+        const prefix = faker.helpers.arrayElement(locationTypes[options.location.urbanPreference]);
+        city = `${prefix} ${city}`;
+      }
+    }
+
     return new Address({
       street: faker.location.streetAddress(),
-      city: faker.location.city(),
+      city: city,
       state: faker.location.state(),
       country: config?.label?.split(' ').slice(1).join(' ') || 'International',
       zipCode: faker.location.zipCode(),
@@ -247,9 +405,10 @@ export class PersonGeneratorService {
   }  /**
    * Generate job data based on country with enhanced support for multiple countries
    * @param {string} countryCode 
+   * @param {Object} options - Advanced generation options
    * @returns {Job}
    */
-  generateJobData(countryCode) {
+  generateJobData(countryCode, options = {}) {
     if (countryCode === 'philippines') {
       // Use enhanced Philippine data generator (integrated)
       const region = this.philippineRegions[Math.floor(Math.random() * this.philippineRegions.length)];
@@ -258,28 +417,159 @@ export class PersonGeneratorService {
       return new Job({
         title: jobData.title,
         company: jobData.company,
-        department: jobData.department
+        department: jobData.department,
+        salary: this.generateSalaryByExperience(options),
+        experience: this.generateExperienceLevel(options)
       });
     }
 
     if (this.enhancedCountries.includes(countryCode)) {
       // Use enhanced country data generator
-      const jobData = this.countryGenerator.generateJob(countryCode);
+      const jobData = this.countryGenerator.generateJob(countryCode, options);
       if (jobData) {
         return new Job({
           title: jobData.title,
           company: jobData.company,
-          department: jobData.department
+          department: jobData.department,
+          salary: this.generateSalaryByExperience(options),
+          experience: this.generateExperienceLevel(options)
         });
       }
     }
 
-    // For other countries or fallback, use faker
+    // For other countries or fallback, use faker with industry preferences
+    let jobTitle = faker.person.jobTitle();
+    let company = faker.company.name();
+    let department = faker.commerce.department();
+
+    // Apply industry preferences
+    if (options.profession?.enabled && options.profession.industry !== 'random') {
+      const industryJobs = this.getJobsByIndustry(options.profession.industry);
+      if (industryJobs.length > 0) {
+        jobTitle = faker.helpers.arrayElement(industryJobs);
+        company = this.getCompanyByIndustry(options.profession.industry);
+        department = this.getDepartmentByIndustry(options.profession.industry);
+      }
+    }
+
     return new Job({
-      title: faker.person.jobTitle(),
-      company: faker.company.name(),
-      department: faker.commerce.department()
+      title: jobTitle,
+      company: company,
+      department: department,
+      salary: this.generateSalaryByExperience(options),
+      experience: this.generateExperienceLevel(options)
     });
+  }
+
+  /**
+   * Generate salary based on experience level
+   * @param {Object} options 
+   * @returns {number|null}
+   */
+  generateSalaryByExperience(options) {
+    if (!options.experience?.enabled) return null;
+    
+    const salaryRanges = {
+      entry: { min: 30000, max: 50000 },
+      mid: { min: 50000, max: 80000 },
+      senior: { min: 80000, max: 120000 },
+      executive: { min: 120000, max: 200000 }
+    };
+    
+    const level = options.experience.level === 'random' ? 
+      faker.helpers.arrayElement(['entry', 'mid', 'senior', 'executive']) :
+      options.experience.level;
+    
+    const range = salaryRanges[level] || salaryRanges.mid;
+    return faker.number.int({ min: range.min, max: range.max });
+  }
+
+  /**
+   * Generate experience level in years
+   * @param {Object} options 
+   * @returns {number|null}
+   */
+  generateExperienceLevel(options) {
+    if (!options.experience?.enabled) return null;
+    
+    const experienceRanges = {
+      entry: { min: 0, max: 2 },
+      mid: { min: 3, max: 7 },
+      senior: { min: 8, max: 15 },
+      executive: { min: 15, max: 30 }
+    };
+    
+    const level = options.experience.level === 'random' ? 
+      faker.helpers.arrayElement(['entry', 'mid', 'senior', 'executive']) :
+      options.experience.level;
+    
+    const range = experienceRanges[level] || experienceRanges.mid;
+    return faker.number.int({ min: range.min, max: range.max });
+  }
+
+  /**
+   * Get job titles by industry
+   * @param {string} industry 
+   * @returns {string[]}
+   */
+  getJobsByIndustry(industry) {
+    const industryJobs = {
+      technology: ['Software Engineer', 'Data Scientist', 'Product Manager', 'DevOps Engineer', 'UX Designer', 'Systems Analyst'],
+      healthcare: ['Doctor', 'Nurse', 'Medical Assistant', 'Pharmacist', 'Physical Therapist', 'Healthcare Administrator'],
+      education: ['Teacher', 'Principal', 'Professor', 'School Counselor', 'Educational Coordinator', 'Curriculum Developer'],
+      finance: ['Financial Analyst', 'Accountant', 'Investment Banker', 'Insurance Agent', 'Credit Analyst', 'Actuary'],
+      retail: ['Store Manager', 'Sales Associate', 'Buyer', 'Inventory Manager', 'Customer Service Representative', 'Visual Merchandiser'],
+      manufacturing: ['Production Manager', 'Quality Control Inspector', 'Machine Operator', 'Industrial Engineer', 'Maintenance Technician'],
+      government: ['Civil Servant', 'Policy Analyst', 'Public Administrator', 'Government Inspector', 'Social Worker', 'Tax Examiner'],
+      entertainment: ['Actor', 'Producer', 'Director', 'Sound Engineer', 'Cinematographer', 'Entertainment Agent'],
+      consulting: ['Management Consultant', 'Business Analyst', 'Strategy Consultant', 'IT Consultant', 'HR Consultant', 'Operations Consultant']
+    };
+    
+    return industryJobs[industry] || [];
+  }
+
+  /**
+   * Get company name by industry
+   * @param {string} industry 
+   * @returns {string}
+   */
+  getCompanyByIndustry(industry) {
+    const industryCompanies = {
+      technology: ['TechCorp', 'InnovateSoft', 'DataDyne Solutions', 'CloudVision Inc.', 'NextGen Technologies'],
+      healthcare: ['MediCare Systems', 'HealthFirst', 'WellnessPoint', 'CareConnect', 'LifeSupport Medical'],
+      education: ['EduTech Solutions', 'Learning Partners', 'Academic Excellence Inc.', 'Knowledge Systems', 'SchoolWorks'],
+      finance: ['Capital Advisors', 'Financial Partners', 'Investment Solutions', 'MoneyWise Corp', 'Wealth Management Group'],
+      retail: ['RetailMax', 'ShopSmart', 'Consumer Choice', 'Marketplace Solutions', 'Retail Innovation'],
+      manufacturing: ['Industrial Solutions', 'Manufacturing Corp', 'Production Systems', 'Quality Manufacturing', 'Factory Works'],
+      government: ['Public Services', 'Government Solutions', 'Civic Systems', 'Administration Corp', 'Public Works'],
+      entertainment: ['Entertainment Plus', 'ShowBiz Corp', 'Creative Solutions', 'Media Works', 'Entertainment Group'],
+      consulting: ['Strategic Advisors', 'Business Solutions', 'Consulting Partners', 'Advisory Services', 'Professional Consulting']
+    };
+    
+    const companies = industryCompanies[industry] || [];
+    return companies.length > 0 ? faker.helpers.arrayElement(companies) : faker.company.name();
+  }
+
+  /**
+   * Get department by industry
+   * @param {string} industry 
+   * @returns {string}
+   */
+  getDepartmentByIndustry(industry) {
+    const industryDepartments = {
+      technology: ['Engineering', 'Product Development', 'Research & Development', 'IT Operations', 'Data Science'],
+      healthcare: ['Clinical Services', 'Patient Care', 'Medical Administration', 'Pharmacy', 'Diagnostics'],
+      education: ['Academic Affairs', 'Student Services', 'Curriculum Development', 'Administration', 'Faculty'],
+      finance: ['Investment Banking', 'Risk Management', 'Portfolio Management', 'Financial Planning', 'Accounting'],
+      retail: ['Sales', 'Merchandising', 'Customer Service', 'Inventory Management', 'Marketing'],
+      manufacturing: ['Production', 'Quality Control', 'Operations', 'Engineering', 'Maintenance'],
+      government: ['Public Administration', 'Policy Development', 'Social Services', 'Regulatory Affairs', 'Public Safety'],
+      entertainment: ['Production', 'Creative Services', 'Distribution', 'Marketing', 'Talent Management'],
+      consulting: ['Strategy', 'Operations', 'Technology', 'Human Resources', 'Change Management']
+    };
+    
+    const departments = industryDepartments[industry] || [];
+    return departments.length > 0 ? faker.helpers.arrayElement(departments) : faker.commerce.department();
   }  /**
    * Generate bio data based on country with enhanced support for multiple countries
    * @param {string} countryCode 
